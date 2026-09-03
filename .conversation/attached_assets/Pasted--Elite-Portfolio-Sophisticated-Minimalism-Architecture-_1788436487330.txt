@@ -1,0 +1,172 @@
+# Elite Portfolio — "Sophisticated Minimalism" Architecture & Implementation Plan
+
+## 1. Locked Decisions
+
+| Decision | Choice |
+|---|---|
+| Framework | Next.js 14+ (App Router), TypeScript |
+| Styling | Tailwind CSS |
+| Motion | GSAP (ScrollTrigger, timelines) |
+| 3D accent | Three.js via `@react-three/fiber` + `@react-three/drei` |
+| Mobile showcase | Video overlays (device-framed HTML5 video) |
+| Content | Static typed TypeScript data files (`src/data/*.ts`) |
+| 3D element | Low-poly wireframe icosahedron with subtle bloom (see §4) |
+| Theme | Dark-first, monochrome + single accent; light mode via `next-themes` |
+
+## 2. Design System — "Sophisticated Minimalism"
+
+Principles: whitespace > ornament, typography > decoration, motion communicates hierarchy, one accent per viewport.
+
+- **Palette** (dark default):
+  - Background: `#0A0A0B` (near-black), surface: `#111113`
+  - Text: `#F5F5F4` primary, `#A1A1AA` secondary, `#52525B` tertiary
+  - Accent: `#E4FF5A` (acid lime — one use per viewport: focus rings, hover underline, key stat)
+  - Light mode: inverted scale, same accent
+- **Typography**: `Inter` for UI/body (`next/font`), `JetBrains Mono` for labels, tags, and code-style metadata. Type scale: 12/14/16 mono labels → 48–96px display headings (clamp()).
+- **Spacing**: 8px grid; sections at 160px vertical rhythm; max content width 1200px.
+- **Motion budget**: max ~600ms per transition, 0.35 cubic-bezier (0.16, 1, 0.3, 1); all motion respects `prefers-reduced-motion`.
+- **Detail tokens**: 1px hairline borders (`border-white/8`), subtle grain overlay (SVG noise, 4% opacity), dot-grid only in hero.
+
+## 3. Tech Stack & Rationale
+
+- **Next.js 14 (App Router) + TypeScript**: SEO for recruiter search, `next/image` for optimized assets, RSC-friendly data imports from static files.
+- **Tailwind CSS**: utility-first with `tailwind.config.ts` tokens extended (colors, fonts, easing, animations); no CSS-in-JS runtime cost.
+- **GSAP + ScrollTrigger** (`gsap`, `@gsap/react`): scrub-parallax, reveal timelines, filter transitions. Registered via `useGSAP` hook. `gsap.context()` scoping per component.
+- **@react-three/fiber + drei**: declarative Three.js. R3F Canvas is `dynamic(() => import(...), { ssr: false })` — never server-rendered; wrapped in `lazy` + `Suspense`.
+- **Video**: native `<video>` (no player lib) — minimal controls, lazy `preload="none"` until modal opens, `poster` placeholder. Codec: H.264 `.mp4` + WebM fallback via `<source>`.
+
+## 4. 3D Element Design (chosen: wireframe icosahedron)
+
+- **Why**: geometric purity matches minimalist philosophy; wireframe reads as "structure/system" — fitting for a developer; low-poly = cheap to render, GPU-friendly on mid-tier devices.
+- **Behavior**: floats in hero's upper-right; slow auto-rotation (~0.05 rad/s); subtle pointer parallax (lerp toward cursor, max 8° tilt); ScrollTrigger scrubs slight scale (1 → 0.6) + opacity fade as user leaves hero; `dpr` capped at 1.5; mesh `WireframeMaterial`/`EdgesGeometry` with accent-colored edges, `Bloom` post-processing at low intensity (0.4) only on the wireframe layer.
+- **Fallback**: `@media (prefers-reduced-motion)` → static render, no parallax; `matchMedia('(hover: none)')` → no pointer tracking. Canvas hidden entirely below `md` breakpoint (perf + whitespace).
+
+## 5. Component Architecture
+
+```
+src/
+├── app/
+│   ├── layout.tsx            # fonts, next-themes provider, <Nav/> <Footer/>
+│   ├── page.tsx              # section composition (client sections isolated)
+│   └── globals.css           # tailwind directives, grain, selection, scrollbar
+├── components/
+│   ├── layout/
+│   │   ├── Nav.tsx           # sticky, scroll-aware (bg blur on scroll), anchor links, theme toggle
+│   │   └── Footer.tsx        # minimal: email, socials, copyright
+│   ├── sections/
+│   │   ├── Hero.tsx          # name, role line, mono meta tags, CTA, 3D canvas
+│   │   ├── Projects.tsx      # filter state host (useState + useMemo)
+│   │   ├── Skills.tsx        # skills matrix
+│   │   └── Contact.tsx       # unobtrusive CTA + mailto + socials
+│   ├── projects/
+│   │   ├── ProjectFilter.tsx # pill/underline filter: All | Mobile | Web | dApp
+│   │   ├── ProjectCard.tsx   # hairline card, hover lift, accent underline
+│   │   ├── ProjectModal.tsx  # detail modal w/ focus trap, ESC, scroll lock
+│   │   └── VideoOverlay.tsx  # device-framed video player (see §7)
+│   ├── three/
+│   │   ├── Scene.tsx         # Canvas wrapper: camera, lights, <Suspense>, postfx
+│   │   └── Icosahedron.tsx   # geometry + materials + rotation/parallax logic
+│   ├── ui/
+│   │   ├── SectionHeading.tsx# mono kicker + display heading, shared reveal
+│   │   ├── Button.tsx        # variants: primary(solid accent)/ghost/hairline
+│   │   └── SkillBadge.tsx    # mono pill or matrix cell
+│   └── animations/
+│       ├── Reveal.tsx        # GSAP ScrollTrigger fade-up wrapper (props: delay, y)
+│       └── TextReveal.tsx    # masked line-reveal for headings
+├── data/
+│   ├── profile.ts            # name, role, socials, contact
+│   ├── projects.ts           # project records (typed)
+│   └── skills.ts             # skill groups + proficiencies
+├── hooks/
+│   ├── useReducedMotion.ts
+│   └── useActiveSection.ts   # scroll-spy for nav
+├── lib/
+│   └── utils.ts              # cn(), clamp, format helpers
+└── types/
+    ├── project.ts            # Project, ProjectCategory
+    └── profile.ts            # Profile, SkillGroup
+```
+
+Data flows one-way: `data/*.ts` → sections via typed imports → UI. No API, no context store — state is local (`filter` state in `Projects.tsx`).
+
+## 6. Data Model (`types/project.ts`)
+
+```ts
+type ProjectCategory = 'mobile' | 'web' | 'dapp';
+
+interface Project {
+  id: string;                    // slug for deep link
+  title: string;
+  tagline: string;
+  category: ProjectCategory;
+  year: string;
+  stack: string[];               // mono tags, e.g. ['React Native', 'Ethers.js']
+  description: string;
+  role: string;
+  image: { src: string; alt: string; width: number; height: number };
+  video?: { mp4: string; webm?: string; poster: string };  // mobile projects
+  links: { repo?: string; live?: string; store?: string };
+  featured?: boolean;
+}
+```
+
+## 7. Video Overlay System (mobile showcase)
+
+**Flow**: `ProjectCard` (mobile category) → click → `ProjectModal` → `VideoOverlay` mounts lazily (dynamic import + Suspense).
+
+**`VideoOverlay.tsx` contract**:
+- Props: `video: { mp4, webm?, poster }`, `title`, `onClose`.
+- Renders a centered CSS phone frame (rounded-[2.5rem] bezel, notch cutout, 9:19.5 aspect) containing the `<video>`; body background dims via backdrop-blur; GSAP scale/opacity entrance; exit on close.
+- Video: `autoPlay muted loop playsInline controls={false}` + `preload="auto"` only after mount; H.264 + WebM `<source>` fallback; poster = first-frame screenshot.
+- **Interaction affordance**: mono "Preview — watch the app in action" label + play/pause hotkey (`Space`), respecting `prefers-reduced-motion` (still plays, no transitions).
+- **Accessibility**: `role="dialog"`, `aria-modal`, focus trap (tab cycling within modal), ESC closes, close button focusable, pause video on close.
+- Asset convention: `/public/videos/{projectId}.mp4|.webm`, `/public/videos/{projectId}-poster.jpg`; ~10–20s, 1080p, H.264 CRF 23 — documented in README for content authors.
+
+## 8. Animation Logic (GSAP)
+
+- **Hero timeline** (on mount): mono tag line → display name (masked line reveal) → role → meta tags stagger → CTA fade. Durations 0.5–0.9s, ease `expo.out`.
+- **Reveal component**: `ScrollTrigger` with `trigger, start: 'top 85%', once: true`; fade-up 24px + blur(8px→0); stagger via `data-reveal-delay` or prop.
+- **Section headings**: `TextReveal` — lines clipped with `overflow-hidden`, y:110% → 0.
+- **Project filtering**: on category change — `gsap.to(cards, { opacity: 0, y: 12, stagger: 0.02 })` → swap dataset → animate back in; grid uses `useMemo` filtering, keyed by `id` to remount cards cleanly.
+- **Scroll-spy nav**: `IntersectionObserver`/ScrollTrigger `toggleActions` highlight active anchor; nav bg-blur appears past hero.
+- **Global**: `useReducedMotion` returns `gsap.globalTimeline` speed or disables transforms (`opacity: 1` direct set) when user prefers reduced motion.
+- All GSAP instances scoped with `gsap.context(() => {...}, ref)` and cleaned in `useGSAP` unmount (no leaked tweens on route change / StrictMode double-mount).
+
+## 9. Performance Budgets
+
+- LCP < 2s; CLS 0 (fixed dims on images/video posters); no layout shift from filter swaps.
+- R3F canvas: `dpr={[1, 1.5]}`, `frameloop` throttled to "always" but only mounted in hero; `Suspense` fallback = styled div.
+- Videos: never loaded until modal intent (poster only on card); `preload="none"` + `loading="lazy"` on poster.
+- Bundle: Three.js chunk code-split via dynamic import (never in main bundle).
+- Fonts: `next/font` with `display: 'swap'`, preload only display font.
+
+## 10. Implementation Order (task list)
+
+1. **Scaffold**: `npx create-next-app@latest` (TS, Tailwind, App Router, `--src-dir`), install `gsap @gsap/react three @react-three/fiber @react-three/drei next-themes clsx`.
+2. **Design tokens**: extend `tailwind.config.ts` (colors, fonts, easing, keyframes); `globals.css` (grain, selection color, focus-visible ring, scrollbar).
+3. **Types + data**: `types/project.ts`, `types/profile.ts`, `data/profile.ts`, `data/skills.ts`, `data/projects.ts` with 6–9 placeholder projects (3 per category).
+4. **Primitives**: `ui/Button`, `ui/SectionHeading`, `animations/Reveal`, `animations/TextReveal`, `hooks/useReducedMotion`, `lib/utils.ts`.
+5. **Layout**: `Nav` (scroll-spy + blur), `Footer`, `app/layout.tsx` (themes provider, fonts).
+6. **Hero**: display lockup, meta tags, CTA; mount `three/Scene` via dynamic import; hero GSAP timeline.
+7. **Projects**: filter, cards, modal wiring; category swap animation.
+8. **Video overlay**: `VideoOverlay` + device frame + lazy mount + focus trap + hotkeys.
+9. **Skills**: matrix (group → items with mono proficiency levels, staggered reveal).
+10. **Contact**: minimal CTA panel, mailto, socials, footer polish.
+11. **Polish pass**: light theme audit, `prefers-reduced-motion` audit, mobile/tablet breakpoints, grain/typography tuning.
+12. **Docs**: README with data-authoring guide (adding projects, video specs, deployment notes).
+
+## 11. Validation
+
+- `npm run lint` and `npx tsc --noEmit` clean.
+- `npm run build` + `npm start`; verify LCP on hero, no CLS on filter swap, no console errors.
+- Manual a11y pass: tab through filter/modal, ESC close, reduced-motion OS setting, screen-reader announcement of filter changes.
+- Test all breakpoints 360px–1920px; verify canvas hidden below `md`.
+- Lighthouse target: Performance ≥ 95, Accessibility ≥ 95, SEO ≥ 95.
+
+## 12. Risks & Mitigations
+
+- **Three.js bundle weight** → dynamic import + dpr cap + canvas hidden on small screens; measure via `@next/bundle-analyzer` if over budget.
+- **Video asset size** → enforce 10–20s duration + CRF 23 in README; WebM fallback; poster-first UX hides load latency.
+- **GSAP + React StrictMode double-mount** → `useGSAP` with context cleanup; verify no duplicated tweens in dev console.
+- **Filter animation jank** → fixed card aspect ratios, `will-change` scoped to transform only during animation, FLIP-free approach (remount keyed cards).
+- **Dark/light mode contrast** → audit accent `#E4FF5A` on both; use `white/8` hairlines that scale with theme.
