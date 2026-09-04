@@ -12,6 +12,7 @@ export interface Project {
   image: { src: string; alt: string; width: number; height: number };
   links: { repo?: string; live?: string; store?: string };
   featured?: boolean;
+  curated?: boolean;
   metric: string;
 }
 
@@ -46,6 +47,7 @@ export const projects: Project[] = [
     links: { live: "https://example.com" },
     featured: true,
     metric: "−31% time to first decision",
+    curated: true,
   },
   {
     id: "field-notes",
@@ -65,6 +67,7 @@ export const projects: Project[] = [
     },
     links: { store: "https://example.com" },
     metric: "4.8 / 5 private beta rating",
+    curated: true,
   },
   {
     id: "ledger-zero",
@@ -85,6 +88,7 @@ export const projects: Project[] = [
     links: { repo: "https://github.com" },
     featured: true,
     metric: "$2.4m settled in pilot",
+    curated: true,
   },
   {
     id: "relay",
@@ -104,6 +108,7 @@ export const projects: Project[] = [
     },
     links: { live: "https://example.com" },
     metric: "2.1k weekly active makers",
+    curated: true,
   },
   {
     id: "interval",
@@ -123,6 +128,7 @@ export const projects: Project[] = [
     },
     links: { store: "https://example.com" },
     metric: "18 min saved per weekly review",
+    curated: true,
   },
   {
     id: "common-ground",
@@ -142,8 +148,89 @@ export const projects: Project[] = [
     },
     links: { repo: "https://github.com" },
     metric: "89% proposal participation",
+    curated: true,
+  },
+  {
+    id: "signalframe",
+    title: "Signalframe",
+    tagline: "Dashboards that explain themselves.",
+    category: "web",
+    year: "2021",
+    stack: ["TypeScript", "D3.js", "Fastify"],
+    description:
+      "An analytics surface for teams drowning in charts. Every metric in Signalframe carries its own context — sources, caveats and the question it was actually meant to answer.",
+    role: "Lead frontend engineer",
+    image: {
+      src: "",
+      alt: "Abstract signalframe analytics interface study",
+      width: 1200,
+      height: 840,
+    },
+    links: { live: "https://example.com" },
+    metric: "−44% time to insight in trials",
+  },
+  {
+    id: "quorum",
+    title: "Quorum",
+    tagline: "Reputation you can read, not just trust.",
+    category: "dapp",
+    year: "2022",
+    stack: ["Solidity", "The Graph", "React"],
+    description:
+      "A reputation layer for small on-chain collectives. Quorum makes contribution history legible before the vote, so trust has somewhere concrete to stand.",
+    role: "Protocol · Interface engineering",
+    image: {
+      src: "",
+      alt: "Abstract quorum reputation visualization",
+      width: 1200,
+      height: 840,
+    },
+    links: { repo: "https://github.com" },
+    metric: "3 collectives governed in pilot",
+  },
+  {
+    id: "observatory",
+    title: "Observatory",
+    tagline: "A sky companion for patient people.",
+    category: "mobile",
+    year: "2021",
+    stack: ["React Native", "Expo", "Mapbox"],
+    description:
+      "An offline-tolerant sky map for amateur astronomers. Observatory trades spectacle for precision — charts that stay honest at 2 a.m., when the cold is doing the filtering.",
+    role: "Product engineer · Mobile",
+    image: {
+      src: "",
+      alt: "Abstract observatory sky map interface study",
+      width: 1000,
+      height: 1200,
+    },
+    links: { store: "https://example.com" },
+    metric: "4.6 / 5 App Store rating",
+  },
+  {
+    id: "margins",
+    title: "Margins",
+    tagline: "A reading app that respects attention.",
+    category: "web",
+    year: "2020",
+    stack: ["Svelte", "Node.js", "Redis"],
+    description:
+      "A distraction-free reading environment that treats long-form attention as the product. Margins keeps progress, highlights and pacing in one calm interface — no feeds, no streaks, no guilt.",
+    role: "Solo · Design & build",
+    image: {
+      src: "",
+      alt: "Abstract margins reading interface study",
+      width: 1200,
+      height: 840,
+    },
+    links: { repo: "https://github.com" },
+    metric: "12k books imported in year one",
   },
 ];
+
+export const curatedProjects: Project[] = projects.filter(
+  (project) => project.curated,
+);
 
 export const skillGroups = [
   {
